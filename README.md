@@ -13,10 +13,12 @@ Personal Laravel Starter Kit, integrated with:
 
 owner starter kit: [ChristYoga123](https://github.com/ChristYoga123)
 
-### 1. Composer install
+### 1. Composer install / update
+
+(NB: if you want to update all dependencies, you can use composer update command with consequences that you should follow all of new documentation for each dependencies)
 
 ```
-composer i
+composer update
 ```
 
 ### 2. Modify .env
@@ -60,6 +62,19 @@ php artisan make:filament-user
 Insert your initial user
 
 ### 4. Generate Initial Policies using Filament
+
+Filament Shield v1.5 or above
+
+``` 
+php artisan shield:setup --fresh
+
+php artisan shield:generate --all
+
+php artisan shield:super-admin 
+```
+
+
+Filament Shield v1.4
 
 ```
 php artisan shield:install

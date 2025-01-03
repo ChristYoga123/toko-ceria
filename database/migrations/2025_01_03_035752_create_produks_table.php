@@ -15,8 +15,6 @@ return new class extends Migration
             $table->id();
             $table->string('nama_produk')->unique();
             $table->unsignedBigInteger('harga_beli');
-            $table->enum('penentuan_harga', ['persen', 'nominal'])->default('persen');
-            $table->unsignedInteger('persen_keuntungan')->default(0);
             $table->unsignedBigInteger('harga_jual');
             $table->unsignedBigInteger('stok');
             $table->unsignedBigInteger('stok_minimal')->default(0);

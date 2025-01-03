@@ -14,7 +14,8 @@ class ManageProduks extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
+            Actions\CreateAction::make()
+                ->closeModalByClickingAway(false),
         ];
     }
 

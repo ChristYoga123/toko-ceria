@@ -2,6 +2,7 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Admin\Pages\KalkulatorPage;
 use App\Filament\Admin\Resources\ProdukResource;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\Authenticate;
@@ -98,6 +99,7 @@ class AdminPanelProvider extends PanelProvider
                     NavigationGroup::make('')
                         ->items([
                             ...Dashboard::getNavigationItems(),
+                            ...KalkulatorPage::getNavigationItems(),
                             ...ProdukResource::getNavigationItems(),
                             // ...PageResource::getNavigationItems(),
                             // ...CategoryResource::getNavigationItems(),

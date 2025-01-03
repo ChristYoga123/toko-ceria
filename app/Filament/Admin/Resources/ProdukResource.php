@@ -35,6 +35,7 @@ class ProdukResource extends Resource
                     ->schema([
                         Forms\Components\TextInput::make('nama_produk')
                             ->required()
+                            ->unique(ignoreRecord: true)
                             ->maxLength(255),
                         Forms\Components\TextInput::make('harga_beli')
                             ->required()

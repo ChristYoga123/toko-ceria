@@ -15,6 +15,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('hutang_id')->constrained()->cascadeOnDelete();
             $table->foreignId('transaksi_id')->constrained()->cascadeOnDelete();
+            $table->unsignedBigInteger('jumlah_bayar');
+            $table->boolean('lunas')->default(false);
             $table->timestamps();
         });
     }

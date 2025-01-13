@@ -15,8 +15,9 @@ return new class extends Migration
             $table->id();
             $table->string('nama_pembeli');
             $table->string('nomor_telepon')->unique();
-            $table->unsignedBigInteger('total_hutang');
-            $table->boolean('lunas')->default(false);
+            // $table->unsignedBigInteger('total_hutang')->default(0);
+            // $table->unsignedBigInteger('jumlah_dibayar')->default(0);
+            // $table->boolean('lunas')->default(false);
             $table->timestamps();
         });
     }

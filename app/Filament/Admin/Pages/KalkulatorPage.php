@@ -1,13 +1,21 @@
 <?php
 namespace App\Filament\Admin\Pages;
 
+use App\Models\Hutang;
 use App\Models\Produk;
+use Filament\Forms\Get;
 use Filament\Forms\Form;
 use Filament\Pages\Page;
+use App\Models\Transaksi;
 use Filament\Tables\Table;
+use App\Models\HutangDetail;
+use App\Models\TransaksiDetail;
 use Livewire\Attributes\Computed;
+use Illuminate\Support\Facades\DB;
+use Filament\Forms\Components\Grid;
 use Filament\Tables\Actions\Action;
 use Filament\Forms\Components\Radio;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Section;
 use Filament\Forms\Contracts\HasForms;
 use Filament\Tables\Columns\TextColumn;
@@ -15,6 +23,7 @@ use Filament\Tables\Contracts\HasTable;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Actions\Contracts\HasActions;
+use Illuminate\Contracts\Support\Htmlable;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Tables\Concerns\InteractsWithTable;
 use Filament\Actions\Concerns\InteractsWithActions;
@@ -24,15 +33,28 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
     use InteractsWithTable, InteractsWithActions, InteractsWithForms;
 
     protected static ?string $navigationIcon = 'heroicon-o-calculator';
+    protected static ?string $navigationLabel = 'POS';
     protected static string $view = 'filament.admin.pages.kalkulator-page';
 
+    public array $data = [
+        'payment_method' => 'lunas',
+        'nama_pembeli' => null,
+        'jumlah_bayar' => 0,
+    ];
     public $cart = [];
     public $quantities = [];
     public $jumlah_bayar = 0;
-    // Add these properties to your KalkulatorPage class:
-    public $payment_method = 'lunas';
-    public $customer_name = '';
-    public $customer_phone = '';
+    public $showCheckoutModal = false;
+
+    public function mount()
+    {
+        $this->form->fill();
+    }
+
+    public function getTitle(): string|Htmlable
+    {
+        return 'POS';
+    }
 
     public function addToCart(Produk $produk)
     {
@@ -99,71 +121,14 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
         return $total;
     }
 
-    // Update the checkout method:
-    public function checkout()
+    #[Computed]
+    public function kembalian()
     {
-        // Validasi stok sebelum checkout
-        foreach ($this->cart as $product) {
-            if ($this->quantities[$product->id] > $product->stok) {
-                Notification::make()
-                    ->title('Gagal')
-                    ->body('Jumlah melebihi stok yang tersedia!')
-                    ->danger()
-                    ->send();
-                return;
-            }
+        if ($this->data['payment_method'] === 'lunas') {
+            $jumlahBayar = (int)($this->data['jumlah_bayar'] ?? 0);
+            return max($jumlahBayar - $this->total, 0);
         }
-
-        // Validasi pembayaran
-        if ($this->payment_method === 'lunas' && $this->jumlah_bayar < $this->total) {
-            Notification::make()
-                ->title('Gagal')
-                ->body('Jumlah bayar kurang!')
-                ->danger()
-                ->send();
-            return;
-        }
-
-        // Validasi data pelanggan untuk hutang
-        if ($this->payment_method === 'hutang') {
-            if (empty($this->customer_name) || empty($this->customer_phone)) {
-                Notification::make()
-                    ->title('Gagal')
-                    ->body('Data pelanggan harus diisi untuk pembayaran hutang!')
-                    ->danger()
-                    ->send();
-                return;
-            }
-
-            if ($this->jumlah_bayar <= 0) {
-                Notification::make()
-                    ->title('Gagal')
-                    ->body('Jumlah cicilan harus lebih dari 0!')
-                    ->danger()
-                    ->send();
-                return;
-            }
-        }
-
-        // Kurangi stok
-        foreach ($this->cart as $product) {
-            $product->stok -= $this->quantities[$product->id];
-            $product->save();
-        }
-
-        // Reset cart and form
-        $this->cart = [];
-        $this->quantities = [];
-        $this->jumlah_bayar = 0;
-        $this->payment_method = 'lunas';
-        $this->customer_name = '';
-        $this->customer_phone = '';
-
-        Notification::make()
-            ->title('Berhasil')
-            ->body('Checkout berhasil!')
-            ->success()
-            ->send();
+        return 0;
     }
 
     public function form(Form $form): Form
@@ -177,51 +142,47 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
                         'hutang' => 'Hutang'
                     ])
                     ->default('lunas')
-                    ->inline()
                     ->live(),
-                    
-                Section::make()
-                    ->schema([
-                        TextInput::make('jumlah_bayar')
-                            ->label('Jumlah Bayar')
-                            ->numeric()
-                            ->live()
-                            ->default(0)
-                            ->required(),
-                            
-                        TextInput::make('kembalian')
-                            ->label('Kembalian')
-                            ->disabled()
-                            ->dehydrated(false)
-                            ->formatStateUsing(fn () => 'Rp ' . number_format((int) ($this->jumlah_bayar ?? 0) - $this->total, 0, ',', '.'))
-                    ])
-                    ->visible(fn (callable $get) => $get('payment_method') === 'lunas'),
 
-                Section::make()
-                    ->schema([
-                        TextInput::make('customer_name')
-                            ->label('Nama Pelanggan')
+                Select::make('nama_pembeli')
+                    ->label('Nama Pembeli')
+                    ->placeholder('Pilih nama pembeli')
+                    ->visible(fn () => $this->data['payment_method'] === 'hutang')
+                    ->required(fn () => $this->data['payment_method'] === 'hutang')
+                    ->options(Hutang::pluck('nama_pembeli', 'id'))
+                    ->createOptionForm([
+                        TextInput::make('nama_pembeli')
+                            ->label('Nama Pembeli')
+                            ->unique(ignoreRecord: true)
+                            ->placeholder('Masukkan nama pembeli')
                             ->required(),
-                        TextInput::make('customer_phone')
-                            ->label('No. Telepon')
-                            ->tel()
-                            ->required(),
-                        TextInput::make('jumlah_bayar')
-                            ->label('Jumlah Cicilan')
+                        TextInput::make('nomor_telepon')
+                            ->label('Nomor Telepon')
                             ->numeric()
-                            ->live()
-                            ->default(0)
+                            ->unique(ignoreRecord: true)
+                            ->placeholder('Masukkan nomor telepon')
                             ->required(),
-                        TextInput::make('sisa_hutang')
-                            ->label('Sisa Hutang')
-                            ->disabled()
-                            ->dehydrated(false)
-                            ->formatStateUsing(fn () => 'Rp ' . number_format($this->total - ($this->jumlah_bayar ?? 0), 0, ',', '.'))
                     ])
-                    ->visible(fn (callable $get) => $get('payment_method') === 'hutang'),
+                    ->createOptionUsing(function (array $data) {
+                        Hutang::create([
+                            'nama_pembeli' => $data['nama_pembeli'],
+                            'nomor_telepon' => $data['nomor_telepon'],
+                        ]);
+                    })
+                    ->required()
+                    ->live(),
+
+                TextInput::make('jumlah_bayar')
+                    ->label('Jumlah Bayar')
+                    ->numeric()
+                    ->default(0)
+                    ->prefix('Rp')
+                    ->suffix(',00')
+                    ->required()
+                    ->live()
+                    ->minValue(0),
             ])
             ->statePath('data');
-
     }
 
     public function table(Table $table): Table
@@ -271,5 +232,117 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
                     ->action(fn (Produk $record) => $this->addToCart($record))
                     ->visible(fn (Produk $record) => $record->stok > 0) // Sembunyikan tombol jika stok habis
             ]);
+    }
+
+    public function resetForm()
+    {
+        // Reset cart and form
+        $this->reset(['cart', 'quantities']);
+        $this->data['jumlah_bayar'] = 0;
+        $this->data['nama_pembeli'] = null;
+        $this->data['payment_method'] = 'lunas';
+    }
+
+    public function checkout()
+    {
+        // Validate cart is not empty
+        if (empty($this->cart)) {
+            Notification::make()
+                ->title('Gagal')
+                ->body('Keranjang belanja kosong!')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        DB::beginTransaction();
+        try {
+            // Validate payment amount for cash payments
+            if ($this->data['payment_method'] === 'lunas' && $this->data['jumlah_bayar'] < $this->total()) {
+                Notification::make()
+                    ->title('Gagal')
+                    ->body('Jumlah bayar kurang dari total belanja!')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            // Revalidate stock availability before checkout
+            foreach ($this->cart as $product) {
+                $quantity = $this->quantities[$product->id] ?? 1;
+                
+                // Refresh product data from database
+                $freshProduct = Produk::find($product->id);
+                
+                if (!$freshProduct || $freshProduct->stok < $quantity) {
+                    DB::rollBack();
+                    Notification::make()
+                        ->title('Gagal')
+                        ->body("Stok produk {$product->nama_produk} tidak mencukupi!")
+                        ->danger()
+                        ->send();
+                    return;
+                }
+            }
+
+            // Create transaction
+            $transaction = Transaksi::create([
+                'transaksi_id' => 'TRX' . now()->timestamp . rand(1000, 9999),
+                'total_harga' => $this->total(),
+                'total_bayar' => $this->data['jumlah_bayar'],
+                'lunas' => $this->data['payment_method'] === 'lunas',
+            ]);
+
+            // Create transaction details
+            foreach ($this->cart as $product) {
+                $quantity = $this->quantities[$product->id] ?? 1;
+                
+                TransaksiDetail::create([
+                    'transaksi_id' => $transaction->id,
+                    'produk_id' => $product->id,
+                    'jumlah' => $quantity,
+                    'harga_satuan' => $product->harga_jual,
+                    'subtotal' => $product->harga_jual * $quantity,
+                ]);
+
+                // Update stock
+                $product->decrement('stok', $quantity);
+            }
+
+            // Handle credit transaction (hutang)
+            if ($this->data['payment_method'] === 'hutang') {
+                if (empty($this->data['nama_pembeli'])) {
+                    throw new \Exception('Nama pembeli harus diisi untuk transaksi hutang!');
+                }
+
+                HutangDetail::create([
+                    'hutang_id' => $this->data['nama_pembeli'], // Using the selected hutang ID
+                    'transaksi_id' => $transaction->id,
+                    'jumlah_bayar' => $this->data['jumlah_bayar'],
+                    'sisa_hutang' => $this->total() - $this->data['jumlah_bayar'],
+                    'lunas' => $this->total() === $this->data['jumlah_bayar'],
+                    'tanggal_hutang' => now(),
+                ]);
+            }
+
+            DB::commit();
+
+            $this->resetForm();
+
+            Notification::make()
+                ->title('Berhasil')
+                ->body('Transaksi berhasil disimpan!')
+                ->success()
+                ->send();
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            
+            Notification::make()
+                ->title('Gagal')
+                ->body('Terjadi kesalahan: ' . $e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }

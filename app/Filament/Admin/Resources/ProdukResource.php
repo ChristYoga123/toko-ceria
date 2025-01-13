@@ -54,6 +54,8 @@ class ProdukResource extends Resource
                             ->required()
                             ->numeric()
                             ->default(0),
+                        Forms\Components\DatePicker::make('tanggal_kadaluarsa')
+                            ->nullable(),
                         Forms\Components\Textarea::make('keterangan')
                             ->columnSpanFull(),
                     ])
@@ -101,6 +103,26 @@ class ProdukResource extends Resource
                             return 'warning';
                         }
                     }),
+                Tables\Columns\TextColumn::make('kadaluarsa')
+                    ->badge()
+                    ->getStateUsing(function(Produk $produk)
+                    {
+                        if ($produk->tanggal_kadaluarsa < now()) {
+                            return 'Kadaluarsa';
+                        }
+                        else {
+                            return 'Tidak Kadaluarsa';
+                        }
+                    })
+                    ->color(function($state)
+                    {
+                        if ($state === 'Kadaluarsa') {
+                            return 'danger';
+                        }
+                        else {
+                            return 'success';
+                        }
+                    }),
                 Tables\Columns\TextColumn::make('created_at')
                     ->dateTime()
                     ->sortable()
@@ -130,6 +152,25 @@ class ProdukResource extends Resource
                         }
                         elseif($data['available'] === 'habis') {
                             $query->where('stok', 0);
+                        }
+
+                        return $query;
+                    }),
+                Filter::make('kadaluarsa')
+                    ->form([
+                        Select::make('expired')
+                            ->label('Kadaluarsa')
+                            ->options([
+                                'expired' => 'Kadaluarsa',
+                                'not_expired' => 'Tidak Kadaluarsa',
+                            ]),
+                    ])
+                    ->query(function (Builder $query, array $data) {
+                        if ($data['expired'] === 'expired') {
+                            $query->whereDate('tanggal_kadaluarsa', '<', now());
+                        }
+                        elseif($data['expired'] === 'not_expired') {
+                            $query->whereDate('tanggal_kadaluarsa', '>=', now());
                         }
 
                         return $query;

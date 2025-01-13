@@ -18,6 +18,7 @@ return new class extends Migration
             $table->unsignedBigInteger('harga_jual');
             $table->unsignedBigInteger('stok');
             $table->unsignedBigInteger('stok_minimal')->default(0);
+            $table->date('tanggal_kadaluarsa')->nullable();
             $table->text('keterangan')->nullable();
             $table->timestamps();
         });

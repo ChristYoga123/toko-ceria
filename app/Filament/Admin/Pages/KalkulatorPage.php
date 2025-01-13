@@ -44,7 +44,6 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
     public $cart = [];
     public $quantities = [];
     public $jumlah_bayar = 0;
-    public $showCheckoutModal = false;
 
     public function mount()
     {
@@ -142,7 +141,13 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
                         'hutang' => 'Hutang'
                     ])
                     ->default('lunas')
-                    ->live(),
+                    ->live()
+                    ->afterStateUpdated(function($state, $set) {
+                        $set('jumlah_bayar', 0);
+                        if ($state === 'lunas') {
+                            $set('nama_pembeli', null);
+                        }
+                    }),
 
                 Select::make('nama_pembeli')
                     ->label('Nama Pembeli')
@@ -255,10 +260,35 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
             return;
         }
 
-        DB::beginTransaction();
-        try {
-            // Validate payment amount for cash payments
-            if ($this->data['payment_method'] === 'lunas' && $this->data['jumlah_bayar'] < $this->total()) {
+        // Validate cart is not empty
+        if (empty($this->cart)) {
+            Notification::make()
+                ->title('Gagal')
+                ->body('Keranjang belanja kosong!')
+                ->danger()
+                ->send();
+            return;
+        }
+
+        // Validasi payment amount sebelum memulai transaction
+        $total = $this->total();
+        $jumlahBayar = (int) $this->data['jumlah_bayar'];
+
+        // Untuk metode hutang
+        if ($this->data['payment_method'] === 'hutang') {
+            if ($jumlahBayar >= $total) {
+                Notification::make()
+                    ->title('Gagal')
+                    ->body('Untuk pembayaran lunas, silahkan pilih metode pembayaran Lunas!')
+                    ->danger()
+                    ->send();
+                return;
+            }
+        }
+
+        // Untuk metode lunas
+        if ($this->data['payment_method'] === 'lunas') {
+            if ($jumlahBayar < $total) {
                 Notification::make()
                     ->title('Gagal')
                     ->body('Jumlah bayar kurang dari total belanja!')
@@ -266,7 +296,10 @@ class KalkulatorPage extends Page implements HasTable, HasActions, HasForms
                     ->send();
                 return;
             }
+        }
 
+        DB::beginTransaction();
+        try {
             // Revalidate stock availability before checkout
             foreach ($this->cart as $product) {
                 $quantity = $this->quantities[$product->id] ?? 1;
